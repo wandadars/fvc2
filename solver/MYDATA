@@ -1,0 +1,66 @@
+      parameter(lm=200000)   ! max nodes/elements
+      parameter(neq=4)      ! number equns solving
+      parameter(lmm=lm*neq) ! max nodes/elements
+      parameter(lbc=20)   ! total number of boundary conditions
+
+      integer        nel, nn, ned ! actual elments/nodes/edges
+      integer        nmm
+      common /size/  nel, nn, ned, nmm
+
+      real*8         u(lm,neq),un(lm,neq),ub(lm,neq)
+      common /soln/  u,un,ub
+
+      real*8          b(lmm)
+      common /matrix/ b
+c     real*8          A(lmm*lmm),b(lmm)
+c     common /matrix/ A,b
+
+      real*8         nodel(3-1,lm)  ! node connectivity
+      real*8         elnorm(11,lm)   ! element normals and centroid
+      common /grd1/  nodel,elnorm
+
+      integer        elml(10-1,lm)   ! element connectivity 
+      integer        edgl(7-1,lm)   ! edge connectivity 
+      common /grd2/  elml,edgl
+
+      real*8         bcvals(4,lbc)
+      common /bound/ bcvals
+
+      ! some grid stuff when looping over edges
+      real*8 exi1(2),exi2(2),eeta(2),dxi,deta,n_dot_xi1,n_dot_xi2
+      integer ied,iel1,iel2,is1,is2,iem1,iem2,
+     >                iems1r,iems1ru,iems1rv,iems1re,
+     >                iems2r,iems2ru,iems2rv,iems2re
+      common /redgev/ exi1,exi2,eeta,dxi,deta,n_dot_xi1,n_dot_xi2
+      common /iedgev/ ied,iel1,iel2,is1,is2,iem1,iem2,
+     >                iems1r,iems1ru,iems1rv,iems1re,
+     >                iems2r,iems2ru,iems2rv,iems2re
+
+      integer         ntags,ntags_dim(lbc),ntags_num(lbc),
+     >                ntags_type(lbc)
+      common /grd_tags/ ntags,ntags_dim,ntags_num,ntags_type
+
+      integer        nbc
+      common /geom3/ nbc
+
+      integer      conv_scheme,time_scheme,diff_scheme,
+     >             iostep,nstepmax
+      common /schemes/ conv_scheme,time_scheme,diff_scheme,
+     >             iostep,nstepmax
+
+      real*8       rgam,rspec,rcp,rcv,k
+      common /rgasprops/ rgam,rspec,rcp,rcv,k
+
+      real*8         dt,time
+      common /timec/ dt,time
+
+      real*8         kv_rk4(lmm,3)
+      common /rk4vs/ kv_rk4
+
+      integer ic_type
+      real*8  ic_uniform(4), ic_split_x, ic_left(4), ic_right(4)
+      common /icctl/ ic_type
+      common /icdata/ ic_uniform, ic_split_x, ic_left, ic_right
+
+      integer output_mode
+      common /outctl/ output_mode
