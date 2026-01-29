@@ -1,0 +1,31 @@
+      parameter(lm=200000)   ! max nodes/elements
+      parameter(neq=1)      ! number equns solving
+      parameter(lmm=lm*neq) ! max nodes/elements
+      parameter(lbc=20)   ! total number of boundary conditions
+
+      integer        nel, nn, ned ! actual elments/nodes/edges
+      integer        nmm
+      common /size/  nel, nn, ned, nmm
+
+      real*8         nodel(3-1,lm)  ! node connectivity
+      real*8         elnorm(11,lm)   ! element normals and centroid
+      common /grd1/  nodel,elnorm
+
+      integer        elml(10-1,lm)   ! element connectivity 
+      integer        edgl(7-1,lm)   ! edge connectivity 
+      integer        edgb(7-1,lm)   ! boundary edges (for setup only)
+      common /grd2/  elml,edgl,edgb
+
+      integer         ntags,ntags_dim(lbc),ntags_num(lbc),
+     >                ntags_type(lbc)
+      common /grd_tags/ ntags,ntags_dim,ntags_num,ntags_type
+
+      integer        nbc
+      common /geom3/ nbc
+
+      character*(255) gmsh_filename
+      common /fname/  gmsh_filename
+
+      integer write_vtk_mesh, verbosity
+      common /ioctl/ write_vtk_mesh, verbosity
+

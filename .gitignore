@@ -8,8 +8,8 @@
 *.out
 
 # Binaries
-fvc2_solver
-sort_grid
+solver/fvc2_solver
+sort_grid/sort_grid
 
 # Gmsh mesh files
 *.msh
