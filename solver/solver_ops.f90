@@ -7,6 +7,46 @@ module solver_ops
   use user, only: user_source
   implicit none
 contains
+  subroutine update_primitive_fields()
+    ! Precompute primitive variables per element for the current state.
+    integer :: i
+    real(real64) :: rho, uvel, vvel, p, t, a, h
+    real(real64) :: ke
+
+    do i = 1, num_elements
+      rho = state(i,1)
+      if (rho > 0.0_real64) then
+        uvel = state(i,2) / rho
+        vvel = state(i,3) / rho
+        ke = 0.5_real64 * (state(i,2)*state(i,2) + state(i,3)*state(i,3)) / rho
+        p = (gamma_gas - 1.0_real64) * (state(i,4) - ke)
+        if (p > 0.0_real64) then
+          t = p / (gas_constant * rho)
+          a = sqrt(gamma_gas * p / rho)
+        else
+          t = 0.0_real64
+          a = 0.0_real64
+        end if
+        h = (state(i,4) + p) / rho
+      else
+        uvel = 0.0_real64
+        vvel = 0.0_real64
+        p = 0.0_real64
+        t = 0.0_real64
+        a = 0.0_real64
+        h = 0.0_real64
+      end if
+
+      density_arr(i) = rho
+      velocity_x_arr(i) = uvel
+      velocity_y_arr(i) = vvel
+      pressure_arr(i) = p
+      temperature_arr(i) = t
+      sound_speed_arr(i) = a
+      enthalpy_arr(i) = h
+    end do
+  end subroutine update_primitive_fields
+
   subroutine precompute_edge_geometry()
     ! Precompute per-edge geometry and side indices (static mesh).
     integer :: edge_idx, elem_idx, side_idx, nsides

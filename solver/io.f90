@@ -14,6 +14,7 @@ contains
     integer :: cells_size
     integer :: nbad_cfl
     real(real64) :: cfl_max, cfl_local, rho, uvel, vvel, p, a, speed, area, dx
+    real(real64) :: ru, rv, re, etotal
     integer :: i
     integer :: unit
 
@@ -119,6 +120,44 @@ contains
         do i = 1, num_elements
           write(unit,*) state(i,4)
         end do
+        write(unit,*) 'VECTORS velocity float'
+        do i = 1, num_elements
+          rho = state(i,1)
+          if (rho > 0.0_real64) then
+            uvel = state(i,2) / rho
+            vvel = state(i,3) / rho
+          else
+            uvel = 0.0_real64
+            vvel = 0.0_real64
+          end if
+          write(unit,*) uvel, vvel, 0.0_real64
+        end do
+        write(unit,*) 'SCALARS pressure float 1'
+        write(unit,*) 'LOOKUP_TABLE default'
+        do i = 1, num_elements
+          rho = state(i,1)
+          ru = state(i,2)
+          rv = state(i,3)
+          re = state(i,4)
+          if (rho > 0.0_real64) then
+            p = (gamma_gas - 1.0_real64) * (re - 0.5_real64*(ru*ru + rv*rv) / rho)
+          else
+            p = 0.0_real64
+          end if
+          write(unit,*) p
+        end do
+        write(unit,*) 'SCALARS total_energy float 1'
+        write(unit,*) 'LOOKUP_TABLE default'
+        do i = 1, num_elements
+          rho = state(i,1)
+          re = state(i,4)
+          if (rho > 0.0_real64) then
+            etotal = re / rho
+          else
+            etotal = 0.0_real64
+          end if
+          write(unit,*) etotal
+        end do
         write(unit,*) ''
 
         close(unit)
@@ -185,6 +224,7 @@ contains
     integer :: unit
     integer :: i
     integer :: offset
+    real(real64) :: rho, uvel, vvel, p, ru, rv, re, etotal
     character(len=32) :: fnamec
     character(len=256) :: outfile
 
@@ -252,6 +292,45 @@ contains
     write(unit,'(A)') '      <DataArray type="Float64" Name="re" format="ascii">'
     do i = 1, num_elements
       write(unit,*) state(i,4)
+    end do
+    write(unit,'(A)') '      </DataArray>'
+    write(unit,'(A)') '      <DataArray type="Float64" Name="velocity" NumberOfComponents="3" format="ascii">'
+    do i = 1, num_elements
+      rho = state(i,1)
+      if (rho > 0.0_real64) then
+        uvel = state(i,2) / rho
+        vvel = state(i,3) / rho
+      else
+        uvel = 0.0_real64
+        vvel = 0.0_real64
+      end if
+      write(unit,*) uvel, vvel, 0.0_real64
+    end do
+    write(unit,'(A)') '      </DataArray>'
+    write(unit,'(A)') '      <DataArray type="Float64" Name="pressure" format="ascii">'
+    do i = 1, num_elements
+      rho = state(i,1)
+      ru = state(i,2)
+      rv = state(i,3)
+      re = state(i,4)
+      if (rho > 0.0_real64) then
+        p = (gamma_gas - 1.0_real64) * (re - 0.5_real64*(ru*ru + rv*rv) / rho)
+      else
+        p = 0.0_real64
+      end if
+      write(unit,*) p
+    end do
+    write(unit,'(A)') '      </DataArray>'
+    write(unit,'(A)') '      <DataArray type="Float64" Name="total_energy" format="ascii">'
+    do i = 1, num_elements
+      rho = state(i,1)
+      re = state(i,4)
+      if (rho > 0.0_real64) then
+        etotal = re / rho
+      else
+        etotal = 0.0_real64
+      end if
+      write(unit,*) etotal
     end do
     write(unit,'(A)') '      </DataArray>'
     write(unit,'(A)') '    </CellData>'

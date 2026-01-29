@@ -26,6 +26,7 @@ program fvc2_solver_main
 
     ! Forward Euler update (default). RK4 placeholder kept for teaching.
     if (time_integration_scheme == 1) then
+      call update_primitive_fields()
       call zero_matricies(rhs, istep)
 
       do edge_id = 1, num_edges

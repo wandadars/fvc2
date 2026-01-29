@@ -4,20 +4,16 @@
 module convection
   use iso_fortran_env, only: real64
   use data
-  use thermo, only: MixtPerf_P, MixtPerf_T, MixtPerf_A, MixtPerf_Ht
   implicit none
 contains
   subroutine convective_flux_interior(bdum)
     real(real64), intent(inout) :: bdum(num_state_entries)
-    real(real64) :: flux(4), ul1(4), ur1(4), nhatx, nhaty
-
-    ul1 = state(elem_left, :)
-    ur1 = state(elem_right, :)
+    real(real64) :: flux(4), nhatx, nhaty
 
     nhatx = element_geom(4+side_index_left*2, elem_left)
     nhaty = element_geom(5+side_index_left*2, elem_left)
 
-    call convective_flux(ul1, ur1, nhatx, nhaty, flux)
+    call convective_flux_cached(elem_left, elem_right, nhatx, nhaty, flux)
 
     bdum(elem_left_rho_idx)  = bdum(elem_left_rho_idx)  - flux(1) * edge_length
     bdum(elem_left_rhou_idx) = bdum(elem_left_rhou_idx) - flux(2) * edge_length
@@ -32,9 +28,11 @@ contains
 
   subroutine convective_flux_boundary(bdum)
     real(real64), intent(inout) :: bdum(num_state_entries)
-    real(real64) :: flux(4), ul1(4), ur1(4), rnhatx, rnhaty
+    real(real64) :: flux(4), rnhatx, rnhaty
     real(real64) :: rdens, rpres, ru, rv, ret
     real(real64) :: uvel, vvel, vn
+    real(real64) :: rho_l, u_l, v_l, p_l, a_l, h_l
+    real(real64) :: rho_r, u_r, v_r, p_r, a_r, h_r
     integer :: idum, ibc
 
     idum = edge_connectivity(5, edge_id)
@@ -42,14 +40,19 @@ contains
     ibc = bc_kind(idum)
 
     if (ibc == 3) then
-      ul1 = state(elem_left, :)
-
       rnhatx = element_geom(4+side_index_left*2, elem_left)
       rnhaty = element_geom(5+side_index_left*2, elem_left)
 
-      ur1 = state(elem_left, :)
+      rho_l = density_arr(elem_left)
+      u_l = velocity_x_arr(elem_left)
+      v_l = velocity_y_arr(elem_left)
+      p_l = pressure_arr(elem_left)
+      a_l = sound_speed_arr(elem_left)
+      h_l = enthalpy_arr(elem_left)
 
-      call convective_flux(ul1, ur1, rnhatx, rnhaty, flux)
+      call flux_from_primitives(rho_l, u_l, v_l, p_l, a_l, h_l, &
+                                rho_l, u_l, v_l, p_l, a_l, h_l, &
+                                rnhatx, rnhaty, flux)
 
       bdum(elem_left_rho_idx)  = bdum(elem_left_rho_idx)  - flux(1) * edge_length
       bdum(elem_left_rhou_idx) = bdum(elem_left_rhou_idx) - flux(2) * edge_length
@@ -70,12 +73,25 @@ contains
         ru    = ic_uniform_state(3)
         rv    = ic_uniform_state(4)
       end if
-      ret = (rpres/(gamma_gas-1.0_real64) + 0.5_real64*rdens*(ru*ru + rv*rv)) / rdens
 
-      flux(1) = rdens * (ru*rnhatx + rv*rnhaty)
-      flux(2) = rdens * ru * (ru*rnhatx + rv*rnhaty) + rpres * rnhatx
-      flux(3) = rdens * rv * (ru*rnhatx + rv*rnhaty) + rpres * rnhaty
-      flux(4) = (ret + rpres/rdens) * rdens * (ru*rnhatx + rv*rnhaty)
+      rho_l = density_arr(elem_left)
+      u_l = velocity_x_arr(elem_left)
+      v_l = velocity_y_arr(elem_left)
+      p_l = pressure_arr(elem_left)
+      a_l = sound_speed_arr(elem_left)
+      h_l = enthalpy_arr(elem_left)
+
+      rho_r = rdens
+      u_r = ru
+      v_r = rv
+      p_r = rpres
+      a_r = sqrt(gamma_gas * p_r / rho_r)
+      ret = p_r/(gamma_gas-1.0_real64)/rho_r + 0.5_real64*(u_r*u_r + v_r*v_r)
+      h_r = ret + p_r / rho_r
+
+      call flux_from_primitives(rho_l, u_l, v_l, p_l, a_l, h_l, &
+                                rho_r, u_r, v_r, p_r, a_r, h_r, &
+                                rnhatx, rnhaty, flux)
 
       bdum(elem_left_rho_idx)  = bdum(elem_left_rho_idx)  - flux(1) * edge_length
       bdum(elem_left_rhou_idx) = bdum(elem_left_rhou_idx) - flux(2) * edge_length
@@ -83,24 +99,27 @@ contains
       bdum(elem_left_rhoe_idx) = bdum(elem_left_rhoe_idx) - flux(4) * edge_length
 
     elseif (ibc == 4) then
-      ! Subsonic farfield: inflow uses specified freestream, outflow extrapolates interior.
-      ul1 = state(elem_left, :)
-
       rnhatx = element_geom(4+side_index_left*2, elem_left)
       rnhaty = element_geom(5+side_index_left*2, elem_left)
 
-      rdens = ul1(1)
-      if (rdens > 0.0_real64) then
-        uvel = ul1(2) / rdens
-        vvel = ul1(3) / rdens
-      else
-        uvel = 0.0_real64
-        vvel = 0.0_real64
-      end if
+      rho_l = density_arr(elem_left)
+      u_l = velocity_x_arr(elem_left)
+      v_l = velocity_y_arr(elem_left)
+      p_l = pressure_arr(elem_left)
+      a_l = sound_speed_arr(elem_left)
+      h_l = enthalpy_arr(elem_left)
+
+      uvel = u_l
+      vvel = v_l
       vn = uvel * rnhatx + vvel * rnhaty
 
       if (vn >= 0.0_real64) then
-        ur1 = ul1
+        rho_r = rho_l
+        u_r = u_l
+        v_r = v_l
+        p_r = p_l
+        a_r = a_l
+        h_r = h_l
       else
         rdens = bc_values(1, idum)
         rpres = bc_values(2, idum)
@@ -112,14 +131,18 @@ contains
           ru    = ic_uniform_state(3)
           rv    = ic_uniform_state(4)
         end if
-        ret = (rpres/(gamma_gas-1.0_real64) + 0.5_real64*rdens*(ru*ru + rv*rv)) / rdens
-        ur1(1) = rdens
-        ur1(2) = rdens * ru
-        ur1(3) = rdens * rv
-        ur1(4) = rdens * ret
+        rho_r = rdens
+        u_r = ru
+        v_r = rv
+        p_r = rpres
+        a_r = sqrt(gamma_gas * p_r / rho_r)
+        ret = p_r/(gamma_gas-1.0_real64)/rho_r + 0.5_real64*(u_r*u_r + v_r*v_r)
+        h_r = ret + p_r / rho_r
       end if
 
-      call convective_flux(ul1, ur1, rnhatx, rnhaty, flux)
+      call flux_from_primitives(rho_l, u_l, v_l, p_l, a_l, h_l, &
+                                rho_r, u_r, v_r, p_r, a_r, h_r, &
+                                rnhatx, rnhaty, flux)
 
       bdum(elem_left_rho_idx)  = bdum(elem_left_rho_idx)  - flux(1) * edge_length
       bdum(elem_left_rhou_idx) = bdum(elem_left_rhou_idx) - flux(2) * edge_length
@@ -127,25 +150,36 @@ contains
       bdum(elem_left_rhoe_idx) = bdum(elem_left_rhoe_idx) - flux(4) * edge_length
 
     elseif (ibc == 1) then
-      ul1 = state(elem_left, :)
-
       rnhatx = element_geom(4+side_index_left*2, elem_left)
       rnhaty = element_geom(5+side_index_left*2, elem_left)
 
-      ur1(1) = state(elem_left, 1)
-      if (abs(rnhaty) < 1.0e-9_real64) then
-        ur1(2) = 0.0_real64
-        ur1(3) = state(elem_left, 3)
-      elseif (abs(rnhatx) < 1.0e-9_real64) then
-        ur1(2) = state(elem_left, 2)
-        ur1(3) = 0.0_real64
-      else
-        ur1(2) = state(elem_left, 2) * 0.0_real64
-        ur1(3) = -ur1(2) * rnhatx / rnhaty
-      end if
-      ur1(4) = state(elem_left, 4)
+      rho_l = density_arr(elem_left)
+      u_l = velocity_x_arr(elem_left)
+      v_l = velocity_y_arr(elem_left)
+      p_l = pressure_arr(elem_left)
+      a_l = sound_speed_arr(elem_left)
+      h_l = enthalpy_arr(elem_left)
 
-      call convective_flux(ul1, ur1, rnhatx, rnhaty, flux)
+      rho_r = rho_l
+      p_r = p_l
+      a_r = a_l
+
+      if (abs(rnhaty) < 1.0e-9_real64) then
+        u_r = 0.0_real64
+        v_r = v_l
+      elseif (abs(rnhatx) < 1.0e-9_real64) then
+        u_r = u_l
+        v_r = 0.0_real64
+      else
+        u_r = 0.0_real64
+        v_r = -u_r * rnhatx / rnhaty
+      end if
+      ret = p_r/(gamma_gas-1.0_real64)/rho_r + 0.5_real64*(u_r*u_r + v_r*v_r)
+      h_r = ret + p_r / rho_r
+
+      call flux_from_primitives(rho_l, u_l, v_l, p_l, a_l, h_l, &
+                                rho_r, u_r, v_r, p_r, a_r, h_r, &
+                                rnhatx, rnhaty, flux)
 
       bdum(elem_left_rho_idx)  = bdum(elem_left_rho_idx)  - flux(1) * edge_length
       bdum(elem_left_rhou_idx) = bdum(elem_left_rhou_idx) - flux(2) * edge_length
@@ -154,22 +188,37 @@ contains
     end if
   end subroutine convective_flux_boundary
 
-  subroutine convective_flux(ul1, ur1, nhatx, nhaty, flux)
-    real(real64), intent(in) :: ul1(4), ur1(4), nhatx, nhaty
+  subroutine convective_flux_cached(elem_l, elem_r, nhatx, nhaty, flux)
+    integer, intent(in) :: elem_l, elem_r
+    real(real64), intent(in) :: nhatx, nhaty
+    real(real64), intent(out) :: flux(4)
+
+    call flux_from_primitives(density_arr(elem_l), velocity_x_arr(elem_l), velocity_y_arr(elem_l), &
+                              pressure_arr(elem_l), sound_speed_arr(elem_l), enthalpy_arr(elem_l), &
+                              density_arr(elem_r), velocity_x_arr(elem_r), velocity_y_arr(elem_r), &
+                              pressure_arr(elem_r), sound_speed_arr(elem_r), enthalpy_arr(elem_r), &
+                              nhatx, nhaty, flux)
+  end subroutine convective_flux_cached
+
+  subroutine flux_from_primitives(rhoL, uL, vL, pL, aL, HL, rhoR, uR, vR, pR, aR, HR, nx, ny, flux)
+    real(real64), intent(in) :: rhoL, uL, vL, pL, aL, HL
+    real(real64), intent(in) :: rhoR, uR, vR, pR, aR, HR
+    real(real64), intent(in) :: nx, ny
     real(real64), intent(out) :: flux(4)
 
     select case (convection_scheme)
     case (0)
       flux = 0.0_real64
     case (1)
-      call ausm_plus(ul1, ur1, nhatx, nhaty, flux)
+      call ausm_plus_prim(rhoL, uL, vL, pL, aL, HL, rhoR, uR, vR, pR, aR, HR, nx, ny, flux)
     case (2)
-      call Roe(ul1, ur1, nhatx, nhaty, flux)
+      call Roe_prim(rhoL, uL, vL, pL, aL, HL, rhoR, uR, vR, pR, aR, HR, nx, ny, flux)
     end select
-  end subroutine convective_flux
+  end subroutine flux_from_primitives
 
-  subroutine Roe(uL, uR, nx, ny, flux)
-    real(real64), intent(in) :: uL(4), uR(4)
+  subroutine Roe_prim(rhoL, uL, vL, pL, aL, HL, rhoR, uR, vR, pR, aR, HR, nx, ny, flux)
+    real(real64), intent(in) :: rhoL, uL, vL, pL, aL, HL
+    real(real64), intent(in) :: rhoR, uR, vR, pR, aR, HR
     real(real64), intent(in) :: nx, ny
     real(real64), intent(out) :: flux(4)
 
@@ -177,9 +226,7 @@ contains
     real(real64) :: zero, fifth, half, one, two
     real(real64) :: tx, ty
     real(real64) :: vxL, vxR, vyL, vyR
-    real(real64) :: rhoL, rhoR, pL, pR
     real(real64) :: vnL, vnR, vtL, vtR
-    real(real64) :: aL, aR, HL, HR, tL, tR
     real(real64) :: RT, rho, vx, vy, H, a, vn, vt
     real(real64) :: drho, dvn, dvt, dp, dV(4)
     real(real64) :: ws(4), dws(4), Rv(4,4)
@@ -196,27 +243,15 @@ contains
     tx = -ny
     ty = nx
 
-    rhoL = uL(1)
-    vxL = uL(2) / uL(1)
-    vyL = uL(3) / uL(1)
+    vxL = uL
+    vyL = vL
     vnL = vxL*nx + vyL*ny
     vtL = vxL*tx + vyL*ty
 
-    pL = MixtPerf_P(uL(1), uL(2), uL(3), uL(4))
-    tL = MixtPerf_T(uL(1), uL(2), uL(3), uL(4), pL)
-    aL = MixtPerf_A(uL(1), uL(2), uL(3), uL(4), tL)
-    hL = MixtPerf_Ht(uL(1), uL(2), uL(3), uL(4), pL)
-
-    rhoR = uR(1)
-    vxR = uR(2) / uR(1)
-    vyR = uR(3) / uR(1)
+    vxR = uR
+    vyR = vR
     vnR = vxR*nx + vyR*ny
     vtR = vxR*tx + vyR*ty
-
-    pR = MixtPerf_P(uR(1), uR(2), uR(3), uR(4))
-    tR = MixtPerf_T(uR(1), uR(2), uR(3), uR(4), pR)
-    aR = MixtPerf_A(uR(1), uR(2), uR(3), uR(4), tR)
-    hR = MixtPerf_Ht(uR(1), uR(2), uR(3), uR(4), pR)
 
     RT = sqrt(rhoR / rhoL)
     rho = RT * rhoL
@@ -288,45 +323,20 @@ contains
     flux(2) = half * (fL(2) + fR(2) - diss(2))
     flux(3) = half * (fL(3) + fR(3) - diss(3))
     flux(4) = half * (fL(4) + fR(4) - diss(4))
-  end subroutine Roe
+  end subroutine Roe_prim
 
-  subroutine ausm_plus(rul, rur, nx, ny, flx)
-    real(real64), intent(in) :: rul(4), rur(4)
+  subroutine ausm_plus_prim(rhoL, uL, vL, pL, aL, HL, rhoR, uR, vR, pR, aR, HR, nx, ny, flx)
+    real(real64), intent(in) :: rhoL, uL, vL, pL, aL, HL
+    real(real64), intent(in) :: rhoR, uR, vR, pR, aR, HR
     real(real64), intent(in) :: nx, ny
     real(real64), intent(out) :: flx(4)
-
-    real(real64) :: al, ar, pl, pr, rl, rr, ul, ur, vl, vr
-    real(real64) :: tl, tr
     real(real64) :: af, mf, mfa, mfm, mfp, ml, mla, mlp, mr, mra, mrm
-    real(real64) :: pf, ql, qr, wtl, wtr, Hl, Hr
-    real(real64) :: retl, retr
+    real(real64) :: pf, ql, qr, wtl, wtr
 
-    rl   = rul(1)
-    ul   = rul(2) / rul(1)
-    vl   = rul(3) / rul(1)
-    retl = rul(4) / rul(1)
+    ql = uL*nx + vL*ny
+    qr = uR*nx + vR*ny
 
-    rr   = rur(1)
-    ur   = rur(2) / rur(1)
-    vr   = rur(3) / rur(1)
-    retr = rur(4) / rur(1)
-
-    pl = MixtPerf_P(rul(1), rul(2), rul(3), rul(4))
-    pr = MixtPerf_P(rur(1), rur(2), rur(3), rur(4))
-
-    tl = MixtPerf_T(rul(1), rul(2), rul(3), rul(4), pl)
-    tr = MixtPerf_T(rur(1), rur(2), rur(3), rur(4), pr)
-
-    al = MixtPerf_A(rul(1), rul(2), rul(3), rul(4), tl)
-    ar = MixtPerf_A(rur(1), rur(2), rur(3), rur(4), tr)
-
-    hl = MixtPerf_Ht(rul(1), rul(2), rul(3), rul(4), pl)
-    hr = MixtPerf_Ht(rur(1), rur(2), rur(3), rur(4), pr)
-
-    ql = ul*nx + vl*ny
-    qr = ur*nx + vr*ny
-
-    af = 0.5_real64 * (al + ar)
+    af = 0.5_real64 * (aL + aR)
     ml  = ql / af
     mla = abs(ml)
 
@@ -358,11 +368,11 @@ contains
     mfp = 0.5_real64*(mf+mfa)
     mfm = 0.5_real64*(mf-mfa)
 
-    pf = wtl*pl + wtr*pr
+    pf = wtl*pL + wtr*pR
 
-    flx(1) = af * (mfp*rl      + mfm*rr)
-    flx(2) = af * (mfp*rl*ul   + mfm*rr*ur) + pf*nx
-    flx(3) = af * (mfp*rl*vl   + mfm*rr*vr) + pf*ny
-    flx(4) = af * (mfp*rl*Hl   + mfm*rr*Hr)
-  end subroutine ausm_plus
+    flx(1) = af * (mfp*rhoL      + mfm*rhoR)
+    flx(2) = af * (mfp*rhoL*uL   + mfm*rhoR*uR) + pf*nx
+    flx(3) = af * (mfp*rhoL*vL   + mfm*rhoR*vR) + pf*ny
+    flx(4) = af * (mfp*rhoL*HL   + mfm*rhoR*HR)
+  end subroutine ausm_plus_prim
 end module convection

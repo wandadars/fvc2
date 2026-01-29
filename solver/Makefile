@@ -21,6 +21,10 @@ release: $(PROG)
 debug: FCFLAGS = $(BASEFLAGS) $(DBGFLAGS)
 debug: clean $(PROG)
 
+profile: FCFLAGS = $(BASEFLAGS) -O2 -pg
+profile: LDFLAGS = -pg
+profile: clean $(PROG)
+
 $(PROG): $(OBJS)
 	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
@@ -33,4 +37,4 @@ clean:
 clean_all:
 	-$(RM) $(OBJS) $(PROG)  profiles* *.mod *.smod
 
-.PHONY: all release debug clean clean_all
+.PHONY: all release debug profile clean clean_all

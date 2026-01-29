@@ -59,6 +59,15 @@ module data
   integer :: edge_side_left(max_mesh_items) = 0
   integer :: edge_side_right(max_mesh_items) = 0
 
+  ! Precomputed primitive variables (per element)
+  real(real64) :: density_arr(max_mesh_items) = 0.0_real64
+  real(real64) :: velocity_x_arr(max_mesh_items) = 0.0_real64
+  real(real64) :: velocity_y_arr(max_mesh_items) = 0.0_real64
+  real(real64) :: pressure_arr(max_mesh_items) = 0.0_real64
+  real(real64) :: temperature_arr(max_mesh_items) = 0.0_real64
+  real(real64) :: sound_speed_arr(max_mesh_items) = 0.0_real64
+  real(real64) :: enthalpy_arr(max_mesh_items) = 0.0_real64
+
   ! Scratch indices for the current edge/element pair
   integer :: edge_id = 0, elem_left = 0, elem_right = 0, side_index_left = 0, side_index_right = 0
   integer :: elem_left_offset = 0, elem_right_offset = 0
@@ -122,5 +131,12 @@ contains
     normal_dot_dir_right = 0.0_real64
     edge_side_left = 0
     edge_side_right = 0
+    density_arr = 0.0_real64
+    velocity_x_arr = 0.0_real64
+    velocity_y_arr = 0.0_real64
+    pressure_arr = 0.0_real64
+    temperature_arr = 0.0_real64
+    sound_speed_arr = 0.0_real64
+    enthalpy_arr = 0.0_real64
   end subroutine reset_arrays
 end module data
