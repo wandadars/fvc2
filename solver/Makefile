@@ -1,28 +1,36 @@
 PROG := fvc2_solver
-SRCS := main.f solve.f convection.f user.f io.f
-OBJS := $(SRCS:.f=.o)
-DEPS := MYDATA
+SRCS := data.f90 utils.f90 thermo.f90 user.f90 \
+	solver_ops.f90 convection.f90 io.f90 main.f90
+OBJS := $(SRCS:.f90=.o)
+DEPS :=
 
-FC ?= gfortran
-FCFLAGS ?= -Wno-argument-mismatch -g -ffree-line-length-none -free
-FCFLAGS += $(OPTFLAGS) $(DBGFLAGS)
+FC := gfortran
+BASEFLAGS ?= -Wno-argument-mismatch -ffree-line-length-none
+OPTFLAGS ?= -O2
+DBGFLAGS ?= -g -O0 -fcheck=all -fbacktrace
 LDFLAGS ?=
 LDLIBS ?=
 
 RM ?= rm -f
 
-all: $(PROG)
+all: release
+
+release: FCFLAGS = $(BASEFLAGS) $(OPTFLAGS)
+release: $(PROG)
+
+debug: FCFLAGS = $(BASEFLAGS) $(DBGFLAGS)
+debug: clean $(PROG)
 
 $(PROG): $(OBJS)
 	$(FC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-%.o: %.f $(DEPS)
+%.o: %.f90 $(DEPS)
 	$(FC) $(FCFLAGS) -c $< -o $@
 
 clean:
-	-$(RM) $(OBJS) $(PROG) soln* profiles*
+	-$(RM) $(OBJS) $(PROG)  profiles* *.mod *.smod
 
 clean_all:
-	-$(RM) $(OBJS) $(PROG) soln* edgl elml elnorm nodel profiles*
+	-$(RM) $(OBJS) $(PROG)  profiles* *.mod *.smod
 
-.PHONY: all clean clean_all
+.PHONY: all release debug clean clean_all

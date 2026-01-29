@@ -9,17 +9,19 @@
 
 # Binaries
 solver/fvc2_solver
-sort_grid/sort_grid
+msh2fvc/msh2fvc
 
 # Gmsh mesh files
 *.msh
 
 # sort_grid outputs
+**/case.fvc
 **/grid/nodel
 **/grid/elnorm
 **/grid/elml
 **/grid/edgl
 **/grid/grid_c*.vtk
+**/grid/phys_names
 **/grid/grid_c*.dat
 
 # Solver outputs
