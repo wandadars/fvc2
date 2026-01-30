@@ -1,8 +1,5 @@
-// This GMSH file is drawn in millimeters, then scaled to meters before meshing.
+// This GMSH file is drawn in millimeters.
 // The bump has a chord length of 1000mm and the height of the bump is 4.2% of the bump chord length.
-
-// Unit scale: mm -> m
-unit = 1e-3;
 
 height_factor = 0.042; // Height of bump as a fraction of chord length
 chord = 1000; // Chord length of bump (mm)
@@ -62,10 +59,10 @@ Field[DistanceField].Sampling = 100;
 ThresholdField = 2;
 Field[ThresholdField] = Threshold;
 Field[ThresholdField].IField = DistanceField; // Use the Distance field
-Field[ThresholdField].LcMin = 5*unit; // Minimum cell size
-Field[ThresholdField].LcMax = 35*unit; // Maximum cell size
-Field[ThresholdField].DistMin = 0*unit; // Distance for min cell size
-Field[ThresholdField].DistMax = 1000*unit; // Distance for max cell size
+Field[ThresholdField].LcMin = 5; // Minimum cell size
+Field[ThresholdField].LcMax = 35; // Maximum cell size
+Field[ThresholdField].DistMin = 0; // Distance for min cell size
+Field[ThresholdField].DistMax = 1000; // Distance for max cell size
 
 // Set the Background Field
 Background Field = ThresholdField;
@@ -81,9 +78,6 @@ Physical Line("symmetry", 5) = {3,7};
 
 // Physical surface tag must be unique vs line tags
 Physical Surface("fluid", 100) = {1};
-
-// Scale geometry (mm -> m) before meshing
-Dilate {{0,0,0}, unit} { Surface{:}; }
 
 Mesh 2;
 Save "case.msh";

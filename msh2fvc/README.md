@@ -24,12 +24,20 @@ and modern MSH 4.x formats are supported.
 
 ```sh
 make
-./msh2fvc path/to/case.msh
+./msh2fvc path/to/case.msh [-m|-mm|-ft|-in]
+# or, equivalently:
+./msh2fvc -mm path/to/case.msh
 ```
 `msh2fvc` only takes the mesh filename. It does **not** read `case.vars`.
 Outputs:
 - `case.fvc` (mesh + physical names for the solver)
 - optional `grid_cXXXXX.vtk` if VTK output is enabled in the code
+
+Units flag (optional):
+- `-m`  input mesh is in meters (default, scale = 1.0)
+- `-mm` input mesh is in millimeters (scale = 1e-3)
+- `-ft` input mesh is in feet (scale = 0.3048)
+- `-in` input mesh is in inches (scale = 0.0254)
 
 ## case.fvc layout
 

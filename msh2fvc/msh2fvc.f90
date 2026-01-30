@@ -27,6 +27,7 @@ module msh2fvc_data
   integer :: nbc = 0
 
   character(len=255) :: gmsh_filename = ''
+  real(real64) :: coord_scale = 1.0_real64
 
   integer :: write_vtk_mesh = 0
   integer :: verbosity = 1
@@ -47,21 +48,68 @@ module msh2fvc_ops
   implicit none
 contains
   subroutine read_cmdline()
-    ! Parse CLI args: only the mesh filename is accepted.
+    ! Parse CLI args: mesh filename + optional unit scale flag.
     character(len=256) :: arg
+    character(len=256) :: unit_arg
     integer :: nargs
+    integer :: i
+    logical :: have_mesh, have_units
 
     nargs = command_argument_count()
-    if (nargs < 1) then
-      write(output_unit,*) 'Usage: msh2fvc <meshfile>'
+    if (nargs < 1 .or. nargs > 2) then
+      write(output_unit,*) 'Usage: msh2fvc <meshfile> [-m|-mm|-ft|-in]'
       error stop
     end if
 
-    call get_command_argument(1, arg)
-    gmsh_filename = trim(arg)
+    coord_scale = 1.0_real64
+    gmsh_filename = ''
+    have_mesh = .false.
+    have_units = .false.
+    do i = 1, nargs
+      call get_command_argument(i, arg)
+      unit_arg = adjustl(arg)
+      select case (trim(unit_arg))
+      case ('-m')
+        if (have_units) goto 900
+        coord_scale = 1.0_real64
+        have_units = .true.
+      case ('-mm')
+        if (have_units) goto 900
+        coord_scale = 1.0e-3_real64
+        have_units = .true.
+      case ('-ft')
+        if (have_units) goto 900
+        coord_scale = 0.3048_real64
+        have_units = .true.
+      case ('-in')
+        if (have_units) goto 900
+        coord_scale = 0.0254_real64
+        have_units = .true.
+      case default
+        if (have_mesh) goto 901
+        gmsh_filename = trim(arg)
+        have_mesh = .true.
+      end select
+    end do
+
+    if (.not. have_mesh) then
+      write(output_unit,*) 'Error: missing mesh file'
+      write(output_unit,*) 'Usage: msh2fvc <meshfile> [-m|-mm|-ft|-in]'
+      error stop
+    end if
 
     write_vtk_mesh = 0
     verbosity = 1
+    return
+
+900 continue
+    write(output_unit,*) 'Error: multiple units flags provided'
+    write(output_unit,*) 'Usage: msh2fvc <meshfile> [-m|-mm|-ft|-in]'
+    error stop
+901 continue
+    write(output_unit,*) 'Error: multiple mesh files provided'
+    write(output_unit,*) 'Usage: msh2fvc <meshfile> [-m|-mm|-ft|-in]'
+    error stop
   end subroutine read_cmdline
 
   subroutine sort_grid()
@@ -649,8 +697,8 @@ contains
             error stop
           end if
           nodemap(node_tag) = idx
-          nodel(1,idx) = rx
-          nodel(2,idx) = ry
+          nodel(1,idx) = rx * coord_scale
+          nodel(2,idx) = ry * coord_scale
         end do
       end do
       read(unit,*) dum_str
@@ -730,7 +778,9 @@ contains
     end if
     read(unit,*) nn
     do i = 1, nn
-      read(unit,*) dum_int, nodel(1,i), nodel(2,i), dum_real
+      read(unit,*) dum_int, rx, ry, dum_real
+      nodel(1,i) = rx * coord_scale
+      nodel(2,i) = ry * coord_scale
     end do
     read(unit,*) dum_str
 
