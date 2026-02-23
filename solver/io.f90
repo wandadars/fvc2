@@ -615,28 +615,36 @@ contains
       if (ios /= 0) goto 980
 
       if (key == 'time_step') then
-        read(vals,*) time_step
+        read(vals,*,iostat=ios) time_step
+        if (ios /= 0) goto 985
         have_dt = .true.
       elseif (key == 'output_interval') then
-        read(vals,*) output_interval
+        read(vals,*,iostat=ios) output_interval
+        if (ios /= 0) goto 985
         have_iostep = .true.
       elseif (key == 'max_steps') then
-        read(vals,*) max_steps
+        read(vals,*,iostat=ios) max_steps
+        if (ios /= 0) goto 985
         have_nstepmax = .true.
       elseif (key == 'gamma') then
-        read(vals,*) gamma_gas
+        read(vals,*,iostat=ios) gamma_gas
+        if (ios /= 0) goto 985
         have_gamma = .true.
       elseif (key == 'molar_mass') then
-        read(vals,*) mmass
+        read(vals,*,iostat=ios) mmass
+        if (ios /= 0) goto 985
         have_mmass = .true.
       elseif (key == 'diffusion_coeff') then
-        read(vals,*) diffusion_coeff
+        read(vals,*,iostat=ios) diffusion_coeff
+        if (ios /= 0) goto 985
         have_k = .true.
       elseif (key == 'time_discretization') then
-        read(vals,*) time_integration_scheme
+        read(vals,*,iostat=ios) time_integration_scheme
+        if (ios /= 0) goto 985
         have_time_scheme = .true.
       elseif (key == 'convective_scheme') then
-        read(vals,*) convection_scheme
+        read(vals,*,iostat=ios) convection_scheme
+        if (ios /= 0) goto 985
         have_conv_scheme = .true.
       elseif (key == 'boundary_conditions') then
         if (trim(vals) /= '<') goto 981
@@ -718,7 +726,17 @@ contains
       if (bc_kind(i) == 0) goto 919
     end do
 
+    if (time_step <= 0.0_real64) goto 921
+    if (output_interval <= 0) goto 922
+    if (max_steps < 0) goto 923
+    if (gamma_gas <= 1.0_real64) goto 924
+    if (mmass <= 0.0_real64) goto 925
+    if (diffusion_coeff < 0.0_real64) goto 926
+    if (time_integration_scheme < 1 .or. time_integration_scheme > 2) goto 927
+    if (convection_scheme < 0 .or. convection_scheme > 2) goto 928
+
     if (have_ic_type) then
+      if (initial_condition_type < 1 .or. initial_condition_type > 3) goto 955
       if (initial_condition_type == 1 .and. .not. have_ic_uniform) goto 920
       if (initial_condition_type == 3) then
         if (.not. have_ic_split_x) goto 930
@@ -768,6 +786,30 @@ contains
 920 continue
     write(error_unit,*) 'Error: initial_condition_type=uniform requires ic_uniform_state'
     error stop
+921 continue
+    write(error_unit,*) 'Error: time_step must be > 0. Value read: ', time_step
+    error stop
+922 continue
+    write(error_unit,*) 'Error: output_interval must be > 0. Value read: ', output_interval
+    error stop
+923 continue
+    write(error_unit,*) 'Error: max_steps must be >= 0. Value read: ', max_steps
+    error stop
+924 continue
+    write(error_unit,*) 'Error: gamma must be > 1. Value read: ', gamma_gas
+    error stop
+925 continue
+    write(error_unit,*) 'Error: molar_mass must be > 0. Value read: ', mmass
+    error stop
+926 continue
+    write(error_unit,*) 'Error: diffusion_coeff must be >= 0. Value read: ', diffusion_coeff
+    error stop
+927 continue
+    write(error_unit,*) 'Error: time_discretization must be 1 (fwd Euler) or 2 (RK4). Value read: ', time_integration_scheme
+    error stop
+928 continue
+    write(error_unit,*) 'Error: convective_scheme must be 0, 1, or 2. Value read: ', convection_scheme
+    error stop
 930 continue
     write(error_unit,*) 'Error: initial_condition_type=shock_tube requires shock_split_x'
     error stop
@@ -791,6 +833,9 @@ contains
     error stop
 982 continue
     write(error_unit,*) 'Error: invalid boundary_conditions entry: ', line
+    error stop
+985 continue
+    write(error_unit,*) 'Error: invalid numeric value for key ', trim(key), ': ', trim(vals)
     error stop
 9400 continue
     write(error_unit,*) 'Error: unknown key in case.vars: ', key
@@ -961,6 +1006,8 @@ contains
       bc_kind(idx) = 3
     elseif (bctype == 'farfield') then
       bc_kind(idx) = 4
+    elseif (bctype == 'subsonic_outlet') then
+      bc_kind(idx) = 5
     else
       ios = 4
       return
@@ -976,10 +1023,23 @@ contains
         ios = 5
         return
       end if
-      bc_values(1,idx) = v1
-      bc_values(2,idx) = v2
-      bc_values(3,idx) = v3
-      bc_values(4,idx) = v4
+      bc_values(bc_value_rho_idx,idx) = v1
+      bc_values(bc_value_p_idx,idx) = v2
+      bc_values(bc_value_u_idx,idx) = v3
+      bc_values(bc_value_v_idx,idx) = v4
+    elseif (bc_kind(idx) == 5) then
+      ! subsonic_outlet(p_out): one scalar input.
+      ! p_out is stored in bc_values(bc_value_subsonic_outlet_p_idx, idx).
+      if (len_trim(args) <= 0) then
+        ios = 5
+        return
+      end if
+      read(args,*,iostat=ios) v1
+      if (ios /= 0) then
+        ios = 5
+        return
+      end if
+      bc_values(bc_value_subsonic_outlet_p_idx,idx) = v1
     end if
   end subroutine parse_bc_entry
 

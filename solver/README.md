@@ -8,12 +8,14 @@ produces a named executable: `fvc2_solver`.
 
 - 2D compressible **Euler** equations (inviscid, no physical viscosity).
 - Finite‑volume method on unstructured triangle/quad meshes.
-- Explicit time stepping (forward Euler only; RK4 is a placeholder).
+- Explicit time stepping (forward Euler implemented).
 - Ideal‑gas thermodynamics.
 
 Notes:
 - `diffusion_coeff` is currently read but **not used** (no viscous terms).
 - Wall boundaries are **slip walls** (no‑penetration; no no‑slip model).
+- `time_discretization = 2` (RK4) is reserved but currently not implemented.
+- `subsonic_outlet(...)` boundary condition is reserved but currently not implemented.
 
 ## Run directory layout
 
@@ -51,7 +53,7 @@ with Fortran list‑directed input. Unknown keys are an error.
 - `gamma`: ratio of specific heats
 - `molar_mass`: molar mass (used to set `rspec = R / molar_mass`)
 - `diffusion_coeff`: diffusion coefficient (stored as `k`, **not used yet**)
-- `time_discretization`: `1` = forward Euler, `2` = RK4 (**RK4 not implemented**)
+- `time_discretization`: `1` = forward Euler, `2` = RK4 (reserved; currently not implemented)
 - `convective_scheme`: `0` = off, `1` = AUSM+, `2` = Roe
 - `boundary_conditions`: a block that maps **mesh physical line names** to
   boundary condition types and optional values.
@@ -60,12 +62,28 @@ The solver matches these names against the **1D physical names** in the
 `[phys_names]` section of `case.fvc` (written by `msh2fvc`). All **1D physical
 names** must appear in the block.
 
+Input validation:
+- `time_step > 0`
+- `output_interval > 0`
+- `max_steps >= 0`
+- `gamma > 1`
+- `molar_mass > 0`
+- `diffusion_coeff >= 0`
+- `time_discretization` must be `1` or `2`
+- `convective_scheme` must be `0`, `1`, or `2`
+
 Boundary condition types:
 - `wall()` — slip wall (no‑penetration)
 - `inlet(rho p u v)` — prescribed primitive inflow state
 - `extrapolated()` — zero‑gradient/outflow
 - `farfield(rho p u v)` — inflow/outflow based on normal velocity; inflow uses
   the provided primitive state
+- `subsonic_outlet(p)` — reserved keyword (currently not implemented)
+
+Boundary value packing in `bc_values`:
+- `inlet(rho p u v)` and `farfield(rho p u v)` map to
+  `bc_values(1:4,:) = [rho, p, u, v]`
+- `subsonic_outlet(p)` maps to `bc_values(1,:) = p` (reserved; currently not implemented)
 
 Example (all 1D physical names must be listed):
 

@@ -10,6 +10,11 @@ module data
   integer, parameter :: num_equations = 4         ! number of conserved equations
   integer, parameter :: max_state_entries = max_mesh_items * num_equations
   integer, parameter :: max_boundary_conditions = 20      ! total number of boundary conditions
+  integer, parameter :: bc_value_rho_idx = 1
+  integer, parameter :: bc_value_p_idx = 2
+  integer, parameter :: bc_value_u_idx = 3
+  integer, parameter :: bc_value_v_idx = 4
+  integer, parameter :: bc_value_subsonic_outlet_p_idx = 1
 
   ! Grid sizes
   integer :: num_elements = 0, num_nodes = 0, num_edges = 0
